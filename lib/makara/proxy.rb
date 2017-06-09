@@ -11,6 +11,7 @@ require 'active_support/core_ext/string/inflections'
 
 module Makara
   class Proxy < ::SimpleDelegator
+    cattr_accessor :test_time, :master_count, :slave_count
 
     METHOD_MISSING_SKIP = [ :byebug, :puts ]
 
@@ -46,6 +47,11 @@ module Makara
     attr_reader :config_parser
 
     def initialize(config)
+      if Makara::Proxy.test_time.nil?
+        Makara::Proxy.test_time = 0
+        Makara::Proxy.master_count = 0
+        Makara::Proxy.slave_count = 0
+      end
       @config         = config.symbolize_keys
       @config_parser  = Makara::ConfigParser.new(@config)
       @id             = @config_parser.id
@@ -189,17 +195,20 @@ module Makara
     end
 
     def _appropriate_pool(method_name, args)
-      # the args provided absolutely need master
-      if needs_master?(method_name, args)
-        stick_to_master(method_name, args)
+      # in this context, we've already stuck to master
+      if Makara::Context.get_current == @master_context || in_transaction?
+        Makara::Proxy.master_count += 1
         @master_pool
 
-      # in this context, we've already stuck to master
-      elsif Makara::Context.get_current == @master_context
+      # the args provided absolutely need master
+      elsif needs_master?(method_name, args)
+        Makara::Proxy.master_count += 1
+        stick_to_master(method_name, args)
         @master_pool
 
       # the previous context stuck us to master
       elsif previously_stuck_to_master?
+        Makara::Proxy.master_count += 1
 
         # we're only on master because of the previous context so
         # behave like we're sticking to master but store the current context
@@ -208,14 +217,13 @@ module Makara
 
       # all slaves are down (or empty)
       elsif @slave_pool.completely_blacklisted?
+        Makara::Proxy.master_count += 1
         stick_to_master(method_name, args)
-        @master_pool
-
-      elsif in_transaction?
         @master_pool
 
       # yay! use a slave
       else
+        Makara::Proxy.slave_count += 1
         @slave_pool
       end
     end
@@ -243,8 +251,10 @@ module Makara
 
     def previously_stuck_to_master?
       return false unless @sticky
-      #!!Makara::Cache.read("makara::#{Makara::Context.get_previous}-#{@id}")
-      false
+      t1 = Time.now
+      rv = !!Makara::Cache.read("makara::#{Makara::Context.get_previous}-#{@id}")
+      Makara::Proxy.test_time += Time.now - t1
+      rv
     end
 
 
