@@ -6,7 +6,7 @@ if ActiveRecord::VERSION::MAJOR >= 4
   module ActiveRecord
     module ConnectionHandling
       def mysql2_makara_connection(config)
-        ActiveRecord::ConnectionAdapters::MakaraMysql2Adapter.new(config)
+        ActiveRecord::ConnectionAdapters::Mysql2MakaraAdapter.new(config)
       end
     end
   end
@@ -16,7 +16,7 @@ else
   module ActiveRecord
     class Base
       def self.mysql2_makara_connection(config)
-        ActiveRecord::ConnectionAdapters::MakaraMysql2Adapter.new(config)
+        ActiveRecord::ConnectionAdapters::Mysql2MakaraAdapter.new(config)
       end
     end
   end
