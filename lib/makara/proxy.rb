@@ -11,7 +11,7 @@ require 'active_support/core_ext/string/inflections'
 
 module Makara
   class Proxy < ::SimpleDelegator
-    cattr_accessor :test_time, :master_count, :slave_count
+    cattr_accessor :test_time, :test_count, :master_count, :slave_count, :sess_count
 
     METHOD_MISSING_SKIP = [ :byebug, :puts ]
 
@@ -49,8 +49,10 @@ module Makara
     def initialize(config)
       if Makara::Proxy.test_time.nil?
         Makara::Proxy.test_time = 0
+        Makara::Proxy.test_count = 0
         Makara::Proxy.master_count = 0
         Makara::Proxy.slave_count = 0
+        Makara::Proxy.sess_count = 0
       end
       @config         = config.symbolize_keys
       @config_parser  = Makara::ConfigParser.new(@config)
@@ -253,7 +255,8 @@ module Makara
       return false unless @sticky
       t1 = Time.now
       rv = !!Makara::Cache.read("makara::#{Makara::Context.get_previous}-#{@id}")
-      Makara::Proxy.test_time += Time.now - t1
+      Makara::Proxy.test_time += Time.now.nsec - t1.nsec
+      Makara::Proxy.test_count += 1
       rv
     end
 

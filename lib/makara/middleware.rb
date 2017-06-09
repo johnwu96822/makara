@@ -58,7 +58,7 @@ module Makara
       if makara_status.to_s =~ /^3/ # 300+ redirect
         context = makara_context
       end
-
+      Makara::Proxy.sess_count = Makara::Proxy.sess_count.nil? ? 0 : Makara::Proxy.sess_count + 1
       context ||= Makara::Context.get_current if env['rack.test']
       context ||= Makara::Context.generate(env["action_dispatch.request_id"])
       context
